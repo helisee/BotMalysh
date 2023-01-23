@@ -2,6 +2,7 @@ import configparser
 import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 import json
+import requests
 from bot_malysh import utils
 
 def run():
@@ -14,8 +15,7 @@ def run():
 	_config_file_path = f'{_root}\\settings.ini'
 	_config.read(_config_file_path)
 
-	""" считывание и запись параметров
-	"""
+	# считывание и запись параметров
 	_group_id = _config["BotMalysh"]["group_id"]
 	_token = _config["BotMalysh"]["token"]
 
@@ -26,8 +26,7 @@ def run():
 
 	longpoll = VkBotLongPoll(vk_session, _group_id)
 
-	""" начало слушателя
-	"""
+	# начало слушателя
 	for event in longpoll.listen():
 		if event.type == VkBotEventType.MESSAGE_NEW:
 			message_new_handler(event)
@@ -41,7 +40,20 @@ def run():
 			group_leave_handler(event)
 
 def message_new_handler(event):
-	print('message new')
+	attachments=event.object.message['attachments']
+	if bool(attachments):
+		print('attachments selected')
+		# print(attachments)
+		for attachment in attachments:
+			doc=attachment['doc']
+			url=doc['url']
+			title=doc['title']
+			print('Документ: ', title)
+			response = requests.get(url)
+
+			open(title, "wb").write(response.content)
+	else:
+		print('None attachments')
 
 def message_reply_handler(event):
 	print('message reply')
@@ -54,3 +66,5 @@ def group_join_handler(event):
 
 def group_leave_handler(event):
 	print('group leave')
+
+
