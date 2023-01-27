@@ -3,7 +3,18 @@ import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 import json
 import requests
+import os
+from vk_api.utils import get_random_id
 from bot_malysh import utils
+from vk_api.keyboard import VkKeyboard, VkKeyboardColor
+
+_PDFDOC_MINSIZE = 159000
+_PDFDOC_MAXSIZE = 180000
+
+settings = dict(one_time=False)
+mkeyboard = VkKeyboard(**settings)
+_snackbar_msg = "{\"type\": \"show_snackbar\", \"text\": \"Кто кликнул - тот и лох\n                                              Бот Малыш {´◕ ◡ ◕｀}\"}"
+mkeyboard.add_callback_button(label='БОТЯРА ЛОХ', color=VkKeyboardColor.POSITIVE, payload=_snackbar_msg)
 
 def run():
 	print('VK listener started')
@@ -29,7 +40,9 @@ def run():
 	# начало слушателя
 	for event in longpoll.listen():
 		if event.type == VkBotEventType.MESSAGE_NEW:
-			message_new_handler(event)
+			message_new_handler(event=event, vk=vk, key_board=mkeyboard)
+		elif event.type == VkBotEventType.MESSAGE_EVENT:
+			message_event_handler(event=event, vk=vk)
 		elif event.type == VkBotEventType.MESSAGE_REPLY:
 			message_reply_handler(event)
 		elif event.type == VkBotEventType.MESSAGE_TYPING_STATE:
@@ -39,21 +52,48 @@ def run():
 		elif event.type == VkBotEventType.GROUP_LEAVE:
 			group_leave_handler(event)
 
-def message_new_handler(event):
+def message_new_handler(event, vk, key_board):
+	#if 'callback' not in event.obj.client_info['button_actions']:
+	#	print(f'Клиент {event.obj.message["from_id"]} не поддерж. callback')
+
+	#if event.from_chat:
+	r = vk.messages.send(
+		user_id=str(event.obj.message["from_id"]),
+		random_id=get_random_id(),
+		peer_id=event.obj.message["peer_id"],
+		keyboard=mkeyboard.get_keyboard(),
+		message='Привет, @id0(кожаный мешок)',
+		chat_id=event.obj.chat_id
+		)
+	
 	attachments=event.object.message['attachments']
 	if bool(attachments):
 		print('attachments selected')
 		# print(attachments)
 		for attachment in attachments:
 			doc=attachment['doc']
-			url=doc['url']
-			title=doc['title']
-			print('Документ: ', title)
-			response = requests.get(url)
-
-			open(title, "wb").write(response.content)
+			# отсеивание форматов и веса документа
+			# полагаем, что формат чека pdf, а размер от 159000 до 180000
+			if doc["ext"] == "pdf" and int(doc["size"]) > _PDFDOC_MINSIZE and int(doc["size"]) < _PDFDOC_MAXSIZE:
+				url=doc['url']
+				title=doc['title']
+				print('Документ: ', title)
+				response = requests.get(url)
+				directory = f"{utils.get_project_root()}\\cache\\doc"
+				if not os.path.exists(directory):
+					os.makedirs(directory)
+				open(f'{directory}\\{title}', "wb").write(response.content)
 	else:
 		print('None attachments')
+
+def message_event_handler(event, vk):
+	r = vk.messages.sendMessageEventAnswer(
+		access_token='aaQh0p2kkalr',
+		event_id=event.object.event_id,
+		user_id=event.object.user_id,
+		peer_id=event.object.peer_id,
+		event_data=json.dumps(event.object.payload)
+		)
 
 def message_reply_handler(event):
 	print('message reply')
