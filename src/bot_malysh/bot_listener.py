@@ -5,32 +5,30 @@ import json
 import requests
 import os
 from vk_api.utils import get_random_id
-from bot_malysh import utils
+from bot_malysh import utils, db
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 
 _PDFDOC_MINSIZE = 159000
 _PDFDOC_MAXSIZE = 180000
 
-settings = dict(one_time=False)
+settings = dict(one_time=True)
 mkeyboard = VkKeyboard(**settings)
-_snackbar_msg = "{\"type\": \"show_snackbar\", \"text\": \"Кто кликнул - тот и лох\n                                              Бот Малыш {´◕ ◡ ◕｀}\"}"
-mkeyboard.add_callback_button(label='БОТЯРА ЛОХ', color=VkKeyboardColor.POSITIVE, payload=_snackbar_msg)
+_snackbar_msg = "{\"type\": \"show_snackbar\", \"text\": \"Клик клик клик\n                                              Бот Малыш {´◕ ◡ ◕｀}\"}"
+mkeyboard.add_callback_button(label='Клик', color=VkKeyboardColor.POSITIVE, payload=_snackbar_msg)
+
+_config = configparser.ConfigParser()
+_root = utils.get_project_root()
+_config_file_path = f'{_root}\\settings.ini'
+_config.read(_config_file_path)
+#считывание и запись параметров
+#блок загрузки параметров бота с ./settings.ini
+_group_id = _config["BotMalysh"]["group_id"]
+_token = _config["BotMalysh"]["token"]
+_access_token=_config["BotMalysh"]["access_token"]
 
 def run():
-	print('VK listener started')
-
-	""" блок загрузки параметров бота с ./settings.ini
-	"""
-	_config = configparser.ConfigParser()
-	_root = utils.get_project_root()
-	_config_file_path = f'{_root}\\settings.ini'
-	_config.read(_config_file_path)
-
-	# считывание и запись параметров
-	_group_id = _config["BotMalysh"]["group_id"]
-	_token = _config["BotMalysh"]["token"]
-
-	print(f'token={_token}\ngroup_id={_group_id}')
+	#print('VK listener started')
+	#print(f'token={_token}\ngroup_id={_group_id}')
 
 	vk_session = vk_api.VkApi(token=_token)
 	vk = vk_session.get_api()
@@ -40,23 +38,19 @@ def run():
 	# начало слушателя
 	for event in longpoll.listen():
 		if event.type == VkBotEventType.MESSAGE_NEW:
-			message_new_handler(event=event, vk=vk, key_board=mkeyboard)
+			message_new_handler(event=event, vk=vk)
 		elif event.type == VkBotEventType.MESSAGE_EVENT:
 			message_event_handler(event=event, vk=vk)
 		elif event.type == VkBotEventType.MESSAGE_REPLY:
-			message_reply_handler(event)
+			message_reply_handler(event=event)
 		elif event.type == VkBotEventType.MESSAGE_TYPING_STATE:
-			message_typing_state_handler(event)
+			message_typing_state_handler(event=event)
 		elif event.type == VkBotEventType.GROUP_JOIN:
-			group_join_handler(event)
+			group_join_handler(event=event)
 		elif event.type == VkBotEventType.GROUP_LEAVE:
-			group_leave_handler(event)
+			group_leave_handler(event=event)
 
-def message_new_handler(event, vk, key_board):
-	#if 'callback' not in event.obj.client_info['button_actions']:
-	#	print(f'Клиент {event.obj.message["from_id"]} не поддерж. callback')
-
-	#if event.from_chat:
+def message_new_handler(event, vk):
 	r = vk.messages.send(
 		user_id=str(event.obj.message["from_id"]),
 		random_id=get_random_id(),
@@ -66,6 +60,8 @@ def message_new_handler(event, vk, key_board):
 		chat_id=event.obj.chat_id
 		)
 	
+	
+
 	attachments=event.object.message['attachments']
 	if bool(attachments):
 		print('attachments selected')
@@ -79,16 +75,16 @@ def message_new_handler(event, vk, key_board):
 				title=doc['title']
 				print('Документ: ', title)
 				response = requests.get(url)
-				directory = f"{utils.get_project_root()}\\cache\\doc"
+				directory = f"{_root}\\cache\\doc"
 				if not os.path.exists(directory):
 					os.makedirs(directory)
 				open(f'{directory}\\{title}', "wb").write(response.content)
-	else:
-		print('None attachments')
+	#else:
+		#print('None attachments')
 
 def message_event_handler(event, vk):
 	r = vk.messages.sendMessageEventAnswer(
-		access_token='aaQh0p2kkalr',
+		access_token=_access_token,
 		event_id=event.object.event_id,
 		user_id=event.object.user_id,
 		peer_id=event.object.peer_id,
@@ -106,5 +102,3 @@ def group_join_handler(event):
 
 def group_leave_handler(event):
 	print('group leave')
-
-
