@@ -22,7 +22,6 @@ settings = dict(one_time=True)
 mkeyboard = VkKeyboard(**settings)
 settings_keyboard = VkKeyboard(**settings)
 
-
 tomain_label = '🗄 На главную'
 settings_label = '⚙ Настройки'
 mkeyboard.add_callback_button(label=settings_label, color=VkKeyboardColor.POSITIVE, payload="{\"type\": \"settings_key\"}")
@@ -44,10 +43,11 @@ _access_token=_config["BotMalysh"]["access_token"]
 _group_id = _config["BotMalysh"]["group_id"]
 _token = _config["BotMalysh"]["token"]
 
+last_message = {}
 nickname_change_state = {}
 nickname_len = 20
 
-hello_event_msgs = ['/start','привет','прив','ghbdtn','даров','дарова','здаров','здарова']
+hello_event_msgs = ['/start','привет','прив','првиет','привте','ghbdtn','даров','дарова','здаров','здарова']
 hello_reply_msgs = ['Привет','Прив','Ась','Даров','Дарова','Здаров','Здарова', 'Да-да, приветик', 'Приветик, пупсик <3']
 
 def run():
@@ -57,17 +57,18 @@ def run():
 	vk_session = vk_api.VkApi(token=_token)
 	vk = vk_session.get_api()
 
-
 	longpoll = VkBotLongPoll(vk_session, _group_id)
 	db.db(rf'{_root}/malysh.db3', vk)
 	# начало слушателя
 	for event in longpoll.listen():
 		if event.type == VkBotEventType.MESSAGE_NEW:
 			message_new_handler(event=event, vk=vk)
+			nikitma_module(event=event , vk=vk)
 		elif event.type == VkBotEventType.MESSAGE_EVENT:
 			message_event_handler(event=event, vk=vk)
 		elif event.type == VkBotEventType.MESSAGE_REPLY:
 			message_reply_handler(event=event)
+			#last_message[event.obj.]
 		elif event.type == VkBotEventType.MESSAGE_TYPING_STATE:
 			message_typing_state_handler(event=event)
 		elif event.type == VkBotEventType.GROUP_JOIN:
@@ -105,7 +106,7 @@ def message_new_handler(event, vk):
 				user_id=user.user_id,
 				random_id=get_random_id(),
 				peer_id=event.obj.message["peer_id"],
-				keyboard=mkeyboard.get_keyboard(),
+				keyboard=settings_keyboard.get_keyboard(),
 				message=f'Отлично, @id{user.user_id}(Вы) сменили ник на @id{user.user_id}({new_nickname})',
 				chat_id=event.obj.chat_id
 			)
@@ -114,7 +115,6 @@ def message_new_handler(event, vk):
 	attachments=event.object.message['attachments']
 	if bool(attachments):
 		print('attachments selected')
-		# print(attachments)
 		for attachment in attachments:
 			doc=attachment['doc']
 			# отсеивание форматов и веса документа
@@ -145,7 +145,7 @@ def message_event_handler(event, vk):
 			random_id=get_random_id(),
 			peer_id=event.object.peer_id,
 			keyboard=settings_keyboard.get_keyboard(),
-			message='&#12288;',
+			message=settings_label,
 			chat_id=event.obj.chat_id
 			)
 		#vk.messages.delete(message_ids=result, delete_for_all=1)
@@ -162,7 +162,7 @@ def message_event_handler(event, vk):
 			random_id=get_random_id(),
 			peer_id=event.object.peer_id,
 			keyboard=mkeyboard.get_keyboard(),
-			message='&#12288;',
+			message=tomain_label,
 			chat_id=event.obj.chat_id
 			)
 		#vk.messages.delete(message_ids=result, delete_for_all=1)
@@ -179,8 +179,8 @@ def message_event_handler(event, vk):
 			user_id=str(event.object.user_id),
 			random_id=get_random_id(),
 			peer_id=event.object.peer_id,
-			keyboard=mkeyboard.get_keyboard(),
-			message=f'Введите свой новый ник ✏\n⚠ Ограничение по количеству символов: {nickname_len}',
+			keyboard=VkKeyboard.get_empty_keyboard(),
+			message=f'✏ Введите свой новый ник\n⚠ Ограничение по количеству символов: {nickname_len}',
 			chat_id=event.obj.chat_id
 			)
 	elif event.object.payload.get('type') == 'show_snackbar':
@@ -207,3 +207,99 @@ def group_leave_handler(event):
 
 def edit_message(peer_id, message_id, message, keyboard=None):
 	return vk.messages.edit(peer_id=peer_id, message_id=message_id, message=message, keyboard=keyboard)
+
+def nikitma_module(event, vk):
+	# ·	Никитма – описание мини-языка
+	# ·	никита)  = Привет - регистроНЕзависимый
+	# ·	НИКИТА(А) = Бл*  - регистрозависимый ;;; (А) - математический период
+	# ·	никит = Эй - регистроНЕзависимый
+	# ·	[Нн]екитА = Что – регистрозависимый ;;;  [Пп] = П или п
+	# ·	никитишь = делаешь - регистроНЕзависимый
+	# ·	никита? = Как дела? - регистроНЕзависимый
+	# ·	китя = спасибо - регистроНЕзависимый
+	# ·	оникитенно = отлично = регистроНЕзависимый
+	# ·	[Нн]еКит = ничего - регистрозависимый
+	# ·	никитую = работаю - регистроНЕзависимый
+
+	##  lower()
+	#  .strip()
+	# 'Нефтяк!
+
+
+	msg = event.object.message['text']
+	user = db.db.get_user(event.obj.message["from_id"])
+
+	if msg.lower() == 'никита)':
+		vk.messages.send(
+			user_id=user.user_id,
+			message='Никита)',
+			random_id=get_random_id()
+		)
+	elif msg.strip()[0].find('НИКИТАА') > -1:
+		vk.messages.send(
+			user_id=user.user_id,
+			message='Не ругайся',
+			random_id=get_random_id()
+		)
+	elif msg.lower() == 'никит':
+		vk.messages.send(
+			user_id=user.user_id,
+			message='НекитА?',
+			random_id=get_random_id()
+		)
+	elif msg == 'НекитА' or msg == 'некитА':
+		vk.messages.send(
+			user_id=user.user_id,
+			message='НеКит',
+			random_id=get_random_id()
+		)
+	elif msg.lower() == 'никитишь':
+		vk.messages.send(
+			user_id=user.user_id,
+			message=random.choice(['Угу', 'Да', 'Никитую']),
+			random_id=get_random_id()
+		)
+	elif msg == 'НекитА никитишь?' or msg == 'некитА никитишь?':
+		vk.messages.send(
+			user_id=user.user_id,
+			message='Никитую',
+			random_id=get_random_id()
+		)
+	elif msg == 'НеКит' or msg == 'неКит':
+		vk.messages.send(
+			user_id=user.user_id,
+			message='Ну ладно',
+			random_id=get_random_id()
+		)
+	elif msg.lower() == 'никита?':
+		vk.messages.send(
+			user_id=user.user_id,
+			message='Оникитенно',
+			random_id=get_random_id()
+		)
+		vk.messages.send(
+			user_id=user.user_id,
+			message='А у тебя никита?',
+			random_id=get_random_id()
+		)
+	elif msg.lower() == 'оникитенно':
+		vk.messages.send(
+			user_id=user.user_id,
+			message='Я рад',
+			random_id=get_random_id()
+		)
+	elif msg.lower() == 'ты никитявый' or msg.lower() == 'никитявый':
+		vk.messages.send(
+			user_id=user.user_id,
+			message='Китя <3\nТы тозе)',
+			random_id=get_random_id()
+		)
+
+class PdfDocImage:
+	docs = []
+
+	def __init__(self, doc=None):
+		if doc != None:
+			docs.append(doc)
+	def add_doc(self, doc):
+		docs.append(doc)
