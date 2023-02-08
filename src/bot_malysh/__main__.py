@@ -1,5 +1,5 @@
 import bot_malysh
-from bot_malysh import bot_listener, db
+from bot_malysh import bot_listener
 
 def main():
     #print(f'{bot_malysh.i_info}')
