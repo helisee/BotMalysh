@@ -1,20 +1,24 @@
 import bot_malysh.db
-import vk_api
 import configparser
+from io import BytesIO
 import json
+import matplotlib.pyplot as plt
 import os
+import sys
 import random
 import requests
 import time
 import unicodedata
+import vk_api
 
+from PIL import Image
 from bot_malysh import utils, db
 from bot_malysh.db import User
 from pathlib import Path
+from pdf2image import convert_from_path, convert_from_bytes, exceptions
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.utils import get_random_id
-
 _PDFDOC_MINSIZE = 159000
 _PDFDOC_MAXSIZE = 180000
 
@@ -125,9 +129,51 @@ def message_new_handler(event, vk):
 				print('Документ: ', title)
 				response = requests.get(url)
 				directory = f"{_root}\\cache\\doc"
+
 				if not os.path.exists(directory):
 					os.makedirs(directory)
-				open(f'{directory}\\{title}', "wb").write(response.content)
+				doc_path = f"{directory}\\{title}"
+				print(doc_path)
+
+				poppler_path = "C:\\poppler-0.68.0\\bin"
+			#try:
+				f = open(doc_path, "wb")
+				f.write(response.content)
+
+				#size = image.size
+				A4_WIDTH = 210
+				A4_HEIGHT = 297
+				pdf_width = 320
+				in_one_sheet = 5
+				image_width = pdf_width * in_one_sheet
+				image_height = int(pdf_width / A4_WIDTH * A4_HEIGHT);  # высота сгенерированного изображения (пропорции А4 210x297)
+				mainimg = Image.new("RGB", (image_height, image_width), "white")
+
+				with open(doc_path, 'rb') as f:  # The mode is r+ instead of r
+					images = convert_from_bytes(f.read(), poppler_path = poppler_path)
+					image = images[0]
+					
+					user_imgs = UserController.add_image(user.user_id, image)
+					i = 0
+					for img in user_imgs:
+						mainimg.paste(img, (i * pdf_width, 0, img.size[0], img.size[1]))
+				
+				mainimg.show()
+			#except:
+				#print("Файл не сохранился")
+			#else:
+				#print(f"Файл {title} сохранён")
+
+"""			try:
+			except NotImplementedError:
+				pass
+			except exceptions.PDFPopplerTimeoutError:
+				pass
+			except exceptions.PDFInfoNotInstalledError:
+				pass
+			except exceptions.PDFPageCountError:"""
+
+
 	#else:
 		#print('None attachments')
 
@@ -228,8 +274,9 @@ def nikitma_module(event, vk):
 
 	msg = event.object.message['text']
 	user = db.db.get_user(event.obj.message["from_id"])
-
-	if msg.lower() == 'никита)':
+	if msg == '':
+		return
+	elif msg.lower() == 'никита)':
 		vk.messages.send(
 			user_id=user.user_id,
 			message='Никита)',
@@ -295,11 +342,31 @@ def nikitma_module(event, vk):
 			random_id=get_random_id()
 		)
 
-class PdfDocImage:
-	docs = []
 
-	def __init__(self, doc=None):
-		if doc != None:
-			docs.append(doc)
-	def add_doc(self, doc):
-		docs.append(doc)
+class UserController(object):
+	users = {}	
+
+	@classmethod
+	def add_image(self, user_id, img):
+		if not user_id in self.users:
+			self.users[user_id] = UserImages()
+		user_imgs = self.users[user_id].add(img)
+		return user_imgs
+
+class UserImages:
+	imgs = []
+	count = 0
+	_imgs_max_size = 5
+
+	def __init__(self):
+		self.imgs = []
+		self.count = 0
+
+	def add(self, img):
+		
+		if len(self.imgs) < self._imgs_max_size:
+			pass
+		else: 
+			self.imgs.clear()
+		self.imgs.append(img)
+		return self.imgs
