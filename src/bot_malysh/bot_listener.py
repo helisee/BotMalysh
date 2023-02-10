@@ -19,6 +19,7 @@ from pdf2image import convert_from_path, convert_from_bytes, exceptions
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.utils import get_random_id
+
 _PDFDOC_MINSIZE = 159000
 _PDFDOC_MAXSIZE = 180000
 
@@ -46,6 +47,8 @@ _config.read(_config_file_path)
 _access_token=_config["BotMalysh"]["access_token"]
 _group_id = _config["BotMalysh"]["group_id"]
 _token = _config["BotMalysh"]["token"]
+
+poppler_path = "C:\\poppler-0.68.0\\bin"
 
 last_message = {}
 nickname_change_state = {}
@@ -118,47 +121,82 @@ def message_new_handler(event, vk):
 
 	attachments=event.object.message['attachments']
 	if bool(attachments):
-		print('attachments selected')
+		#print('attachments selected')
+		pdf_docs = []
+
 		for attachment in attachments:
 			doc=attachment['doc']
 			# отсеивание форматов и веса документа
 			# полагаем, что формат чека pdf, а размер от 159000 до 180000
 			if doc["ext"] == "pdf" and int(doc["size"]) > _PDFDOC_MINSIZE and int(doc["size"]) < _PDFDOC_MAXSIZE:
-				url=doc['url']
-				title=doc['title']
-				print('Документ: ', title)
-				response = requests.get(url)
-				directory = f"{_root}\\cache\\doc"
+				pdf_docs.append(attachment)
 
-				if not os.path.exists(directory):
-					os.makedirs(directory)
-				doc_path = f"{directory}\\{title}"
-				print(doc_path)
+		pdf_docs_count = len(pdf_docs)
+		pdf_doc_iter = 0
+		for pdf_doc in pdf_docs:
 
-				poppler_path = "C:\\poppler-0.68.0\\bin"
+			doc = pdf_doc['doc']
+			url=doc['url']
+			title=doc['title']
+
+			print('Документ: ', title)
+
+			response = requests.get(url)
+			tmp_doc_directory = f"{_root}\\cache\\doc"
+			tmp_img_directory = f"{_root}\\cache\\imgs"
+
+			if not os.path.exists(tmp_doc_directory):
+				os.makedirs(tmp_doc_directory)
+			doc_path = f"{tmp_doc_directory}\\{title}"
+			print(doc_path)
+			
 			#try:
-				f = open(doc_path, "wb")
-				f.write(response.content)
+			f = open(doc_path, "wb")
+			f.write(response.content)
+			A4_WIDTH = 210
+			A4_HEIGHT = 297
+			pdf_width = 889
+			in_one_sheet = 5
+			image_width = pdf_width * in_one_sheet
+			image_height = int(image_width / A4_WIDTH * A4_HEIGHT);  # высота сгенерированного изображения (пропорции А4 210x297)
 
-				#size = image.size
-				A4_WIDTH = 210
-				A4_HEIGHT = 297
-				pdf_width = 320
-				in_one_sheet = 5
-				image_width = pdf_width * in_one_sheet
-				image_height = int(pdf_width / A4_WIDTH * A4_HEIGHT);  # высота сгенерированного изображения (пропорции А4 210x297)
-				mainimg = Image.new("RGB", (image_height, image_width), "white")
+			mainimg = Image.new("RGB", (image_width, image_height), "white")
+			print(f'mainimg size:  image_height={image_height}    image_width={image_width} ')
 
-				with open(doc_path, 'rb') as f:  # The mode is r+ instead of r
-					images = convert_from_bytes(f.read(), poppler_path = poppler_path)
-					image = images[0]
-					
-					user_imgs = UserController.add_image(user.user_id, image)
-					i = 0
-					for img in user_imgs:
-						mainimg.paste(img, (i * pdf_width, 0, img.size[0], img.size[1]))
+			with open(doc_path, 'rb') as f:  # The mode is r+ instead of r
+				images = convert_from_bytes(f.read(), poppler_path = poppler_path)
+				image = images[0]
 				
+				user_imgs = UserController.add_image(user.user_id, image)
+				i = 0
+				for img in user_imgs:
+					print(f'mainimg.paste: width={i * pdf_width}     size 0 = {img.size[0]}    size 1 = {img.size[1]}')
+					mainimg.paste(img, (i * pdf_width, 0))  #, img.size[0], img.size[1]
+					i += 1
+
+			os.remove(doc_path)
+
+			mainimg = mainimg.resize((int(image_width / 3), int(image_height / 3)))
+
+			docs_count = UserController.users[user.user_id].count
+			pdf_doc_iter += 1
+			if docs_count == 5 or pdf_doc_iter == pdf_docs_count:
+				img_path = f'{tmp_img_directory}\\tmp{user.user_id}_{int(time.time())}.jpg'
+				mainimg.save(img_path)
 				mainimg.show()
+
+				upload = vk_api.VkUpload(vk)
+				photo = upload.photo_messages(img_path)
+				owner_id = photo[0]['owner_id']
+				photo_id = photo[0]['id']
+				access_key = photo[0]['access_key']
+				attachment = f'photo{owner_id}_{photo_id}_{access_key}'
+				vk.messages.send(
+					user_id=user.user_id,
+					random_id=get_random_id(),
+					attachment=attachment
+				)
+
 			#except:
 				#print("Файл не сохранился")
 			#else:
@@ -349,6 +387,7 @@ class UserController(object):
 	@classmethod
 	def add_image(self, user_id, img):
 		if not user_id in self.users:
+			print("Instance user_id dict")
 			self.users[user_id] = UserImages()
 		user_imgs = self.users[user_id].add(img)
 		return user_imgs
@@ -367,6 +406,9 @@ class UserImages:
 		if len(self.imgs) < self._imgs_max_size:
 			pass
 		else: 
+			self.count = 0
 			self.imgs.clear()
 		self.imgs.append(img)
+		self.count = len(self.imgs)
+		print(f'В imgs картинок: {self.count}')
 		return self.imgs
