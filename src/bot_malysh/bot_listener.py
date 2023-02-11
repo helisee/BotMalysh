@@ -13,7 +13,7 @@ import vk_api
 
 from PIL import Image
 from bot_malysh import utils, db
-from bot_malysh.db import User
+from bot_malysh.user_controller import UserController, UserImages
 from pathlib import Path
 from pdf2image import convert_from_path, convert_from_bytes, exceptions
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
@@ -48,6 +48,7 @@ _access_token=_config["BotMalysh"]["access_token"]
 _group_id = _config["BotMalysh"]["group_id"]
 _token = _config["BotMalysh"]["token"]
 
+#for windows
 poppler_path = "C:\\poppler-0.68.0\\bin"
 
 last_message = {}
@@ -98,10 +99,8 @@ def message_new_handler(event, vk):
 			peer_id=event.obj.message["peer_id"],
 			keyboard=mkeyboard.get_keyboard(),
 			message=random.choice(hello_reply_msgs),
-			#'&#12288;' - символ пробела
 			chat_id=event.obj.chat_id
 			)
-		#vk.messages.delete(message_ids=result, delete_for_all=1)
 		user.set_last_msg_timestamp(vkmsg_date)
 
 	if bool(nickname_change_state):
@@ -121,7 +120,6 @@ def message_new_handler(event, vk):
 
 	attachments=event.object.message['attachments']
 	if bool(attachments):
-		#print('attachments selected')
 		pdf_docs = []
 
 		for attachment in attachments:
@@ -139,8 +137,7 @@ def message_new_handler(event, vk):
 			url=doc['url']
 			title=doc['title']
 
-			print('Документ: ', title)
-
+			#print('Документ: ', title)
 			response = requests.get(url)
 			tmp_doc_directory = f"{_root}\\cache\\doc"
 			tmp_img_directory = f"{_root}\\cache\\imgs"
@@ -148,9 +145,8 @@ def message_new_handler(event, vk):
 			if not os.path.exists(tmp_doc_directory):
 				os.makedirs(tmp_doc_directory)
 			doc_path = f"{tmp_doc_directory}\\{title}"
-			print(doc_path)
+			#print(doc_path)
 			
-			#try:
 			f = open(doc_path, "wb")
 			f.write(response.content)
 			A4_WIDTH = 210
@@ -164,13 +160,16 @@ def message_new_handler(event, vk):
 			print(f'mainimg size:  image_height={image_height}    image_width={image_width} ')
 
 			with open(doc_path, 'rb') as f:  # The mode is r+ instead of r
+				#for windows
 				images = convert_from_bytes(f.read(), poppler_path = poppler_path)
+				#for linux
+				#images = convert_from_bytes(f.read())
 				image = images[0]
 				
 				user_imgs = UserController.add_image(user.user_id, image)
 				i = 0
 				for img in user_imgs:
-					print(f'mainimg.paste: width={i * pdf_width}     size 0 = {img.size[0]}    size 1 = {img.size[1]}')
+					#print(f'mainimg.paste: width={i * pdf_width}     size 0 = {img.size[0]}    size 1 = {img.size[1]}')
 					mainimg.paste(img, (i * pdf_width, 0))  #, img.size[0], img.size[1]
 					i += 1
 
@@ -197,23 +196,7 @@ def message_new_handler(event, vk):
 					attachment=attachment
 				)
 
-			#except:
-				#print("Файл не сохранился")
-			#else:
-				#print(f"Файл {title} сохранён")
-
-"""			try:
-			except NotImplementedError:
-				pass
-			except exceptions.PDFPopplerTimeoutError:
-				pass
-			except exceptions.PDFInfoNotInstalledError:
-				pass
-			except exceptions.PDFPageCountError:"""
-
-
-	#else:
-		#print('None attachments')
+				os.remove(img_path)
 
 def message_event_handler(event, vk):
 	if event.object.payload.get('type') == 'settings_key':
@@ -232,7 +215,6 @@ def message_event_handler(event, vk):
 			message=settings_label,
 			chat_id=event.obj.chat_id
 			)
-		#vk.messages.delete(message_ids=result, delete_for_all=1)
 	elif event.object.payload.get('type') == 'tomain_key':
 		result = vk.messages.sendMessageEventAnswer(
 			access_token=_access_token,
@@ -249,7 +231,6 @@ def message_event_handler(event, vk):
 			message=tomain_label,
 			chat_id=event.obj.chat_id
 			)
-		#vk.messages.delete(message_ids=result, delete_for_all=1)
 	elif event.object.payload.get('type') == 'change_nickname_key':
 		nickname_change_state[event.object.user_id] = True
 		result = vk.messages.sendMessageEventAnswer(
@@ -314,101 +295,31 @@ def nikitma_module(event, vk):
 	user = db.db.get_user(event.obj.message["from_id"])
 	if msg == '':
 		return
-	elif msg.lower() == 'никита)':
-		vk.messages.send(
-			user_id=user.user_id,
-			message='Никита)',
-			random_id=get_random_id()
-		)
+	send_message = ''
+	if msg.lower() == 'никита)':
+		send_message =  'Никита)'
 	elif msg.strip()[0].find('НИКИТАА') > -1:
-		vk.messages.send(
-			user_id=user.user_id,
-			message='Не ругайся',
-			random_id=get_random_id()
-		)
+		send_message =  'Не ругайся'
 	elif msg.lower() == 'никит':
-		vk.messages.send(
-			user_id=user.user_id,
-			message='НекитА?',
-			random_id=get_random_id()
-		)
+		send_message =  'НекитА?'
 	elif msg == 'НекитА' or msg == 'некитА':
-		vk.messages.send(
-			user_id=user.user_id,
-			message='НеКит',
-			random_id=get_random_id()
-		)
+		send_message =  'НеКит'
 	elif msg.lower() == 'никитишь':
-		vk.messages.send(
-			user_id=user.user_id,
-			message=random.choice(['Угу', 'Да', 'Никитую']),
-			random_id=get_random_id()
-		)
+		send_message = random.choice(['Угу', 'Да', 'Никитую'])
 	elif msg == 'НекитА никитишь?' or msg == 'некитА никитишь?':
-		vk.messages.send(
-			user_id=user.user_id,
-			message='Никитую',
-			random_id=get_random_id()
-		)
+		send_message =  'Никитую'
 	elif msg == 'НеКит' or msg == 'неКит':
-		vk.messages.send(
-			user_id=user.user_id,
-			message='Ну ладно',
-			random_id=get_random_id()
-		)
+		send_message =  'Ну ладно'
 	elif msg.lower() == 'никита?':
-		vk.messages.send(
-			user_id=user.user_id,
-			message='Оникитенно',
-			random_id=get_random_id()
-		)
-		vk.messages.send(
-			user_id=user.user_id,
-			message='А у тебя никита?',
-			random_id=get_random_id()
-		)
+		send_message =  'Оникитенно\nА у тебя никита?'
 	elif msg.lower() == 'оникитенно':
-		vk.messages.send(
-			user_id=user.user_id,
-			message='Я рад',
-			random_id=get_random_id()
-		)
+		send_message =  'Я рад'
 	elif msg.lower() == 'ты никитявый' or msg.lower() == 'никитявый':
+		send_message =  'Китя <3\nТы тозе)'
+
+	if send_message != '':
 		vk.messages.send(
 			user_id=user.user_id,
-			message='Китя <3\nТы тозе)',
+			message=send_message,
 			random_id=get_random_id()
 		)
-
-
-class UserController(object):
-	users = {}	
-
-	@classmethod
-	def add_image(self, user_id, img):
-		if not user_id in self.users:
-			print("Instance user_id dict")
-			self.users[user_id] = UserImages()
-		user_imgs = self.users[user_id].add(img)
-		return user_imgs
-
-class UserImages:
-	imgs = []
-	count = 0
-	_imgs_max_size = 5
-
-	def __init__(self):
-		self.imgs = []
-		self.count = 0
-
-	def add(self, img):
-		
-		if len(self.imgs) < self._imgs_max_size:
-			pass
-		else: 
-			self.count = 0
-			self.imgs.clear()
-		self.imgs.append(img)
-		self.count = len(self.imgs)
-		print(f'В imgs картинок: {self.count}')
-		return self.imgs
