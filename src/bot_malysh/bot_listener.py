@@ -1,9 +1,9 @@
 import bot_malysh.db
 import configparser
-from io import BytesIO
 import json
 import matplotlib.pyplot as plt
 import os
+import pprint
 import sys
 import random
 import requests
@@ -14,6 +14,7 @@ import vk_api
 from PIL import Image
 from bot_malysh import utils, db
 from bot_malysh.user_controller import UserController, UserImages
+from io import BytesIO
 from pathlib import Path
 from pdf2image import convert_from_path, convert_from_bytes, exceptions
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
@@ -49,7 +50,7 @@ _group_id = _config["BotMalysh"]["group_id"]
 _token = _config["BotMalysh"]["token"]
 
 #for windows
-poppler_path = "C:\\poppler-0.68.0\\bin"
+poppler_path = "C:/poppler-0.68.0/bin"
 
 last_message = {}
 nickname_change_state = {}
@@ -80,7 +81,7 @@ def run():
 		elif event.type == VkBotEventType.MESSAGE_TYPING_STATE:
 			message_typing_state_handler(event=event)
 		elif event.type == VkBotEventType.GROUP_JOIN:
-			group_join_handler(event=event)
+			group_join_handler(event=event, vk=vk)
 		elif event.type == VkBotEventType.GROUP_LEAVE:
 			group_leave_handler(event=event)
 
@@ -105,7 +106,7 @@ def message_new_handler(event, vk):
 
 	if bool(nickname_change_state):
 		if bool(nickname_change_state[event.obj.message["from_id"]]):
-			new_nickname = msg.split()[0][0:12]
+			new_nickname = msg.split()[0][0:nickname_len]
 			user.set_nickname(new_nickname)
 
 			result = vk.messages.send(
@@ -118,7 +119,14 @@ def message_new_handler(event, vk):
 			)
 			nickname_change_state.pop(event.obj.message["from_id"], None)
 
+	print();event
+	print(event.object);
+	print();
 	attachments=event.object.message['attachments']
+
+	if bool(attachments) == False:
+		attachments=event.object.message['reply_message']['attachments']
+
 	if bool(attachments):
 		pdf_docs = []
 
@@ -139,13 +147,12 @@ def message_new_handler(event, vk):
 
 			#print('Документ: ', title)
 			response = requests.get(url)
-			tmp_doc_directory = f"{_root}\\cache\\doc"
-			tmp_img_directory = f"{_root}\\cache\\imgs"
+			tmp_doc_directory = f"{_root}/cache/doc"
+			tmp_img_directory = f"{_root}/cache/imgs"
 
 			if not os.path.exists(tmp_doc_directory):
 				os.makedirs(tmp_doc_directory)
 			doc_path = f"{tmp_doc_directory}\\{title}"
-			#print(doc_path)
 			
 			f = open(doc_path, "wb")
 			f.write(response.content)
@@ -169,8 +176,7 @@ def message_new_handler(event, vk):
 				user_imgs = UserController.add_image(user.user_id, image)
 				i = 0
 				for img in user_imgs:
-					#print(f'mainimg.paste: width={i * pdf_width}     size 0 = {img.size[0]}    size 1 = {img.size[1]}')
-					mainimg.paste(img, (i * pdf_width, 0))  #, img.size[0], img.size[1]
+					mainimg.paste(img, (i * pdf_width, 0))  
 					i += 1
 
 			os.remove(doc_path)
@@ -264,7 +270,9 @@ def message_typing_state_handler(event):
 	user = db.db.get_user(event.obj["from_id"])
 	print(f'{user.nickname} пишет ...')
 
-def group_join_handler(event):
+def group_join_handler(event, vk):
+	pprint.pprint(event)
+	
 	print('group join')
 
 def group_leave_handler(event):
@@ -289,7 +297,6 @@ def nikitma_module(event, vk):
 	##  lower()
 	#  .strip()
 	# 'Нефтяк!
-
 
 	msg = event.object.message['text']
 	user = db.db.get_user(event.obj.message["from_id"])
@@ -316,6 +323,8 @@ def nikitma_module(event, vk):
 		send_message =  'Я рад'
 	elif msg.lower() == 'ты никитявый' or msg.lower() == 'никитявый':
 		send_message =  'Китя <3\nТы тозе)'
+	elif msg.lower() == 'никитучусь':
+		send_message =  'Никичеба - наша жизнь'
 
 	if send_message != '':
 		vk.messages.send(
